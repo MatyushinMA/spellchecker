@@ -51,7 +51,6 @@ def classification(fix, score, orig, cond_prob, language_model):
             pass
 
     if orig_score >= score
-        return orig
-        
-    return fix
+        return orig, orig_score
+    return fix, score
    
