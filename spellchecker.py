@@ -5,147 +5,37 @@ import pickle
 import re
 import numpy as np
 import unicodedata
+import sklearn
+from fizzle import dl_distance
 
 ITER_CAP = 10
 
-class LanguageModel:
+def get_prob(language_model, cond_prob, query):
+    if len(query) == 0:
+        return 0.
+    if len(query) == 1 and query[-1] not in language_model.keys():
+        return 0.
 
-    def __init__(self, FILE_PATH):
-        self.dict = {}
-        self.__count_of_word = 0.
-        self._regex = re.compile(r"\w+")
-        self.__fit(FILE_PATH)
-        self.__normalize()
+    prob = 1.
+    for i in range(len(query)-1):
+        w1 = query[i]
+        w2 = query[i+1]
 
-
-    def __fit(self, file):
-
-        with open(file) as f:
-            content = f.readlines()
-
-        for line in content:
-
-            line = line.lower()
-            line = line[:-1]
-            index = line.find('\t')
-            if index > 0:
-                line = line[index+1:]
-
-            words = re.findall(r"(?u)\w+", line)
-            for i in range(len(words)):
-                word = words[i]
-
-                if word in self.dict.keys():
-                    self.dict[word]["freq"] += 1.
-                else:
-                    self.dict[word] = {"freq": 1.,
-                                       "words": {}}
-
-                self.__count_of_word += 1
-
-                if i != len(words)-1:
-                    if words[i+1] in self.dict[word]["words"].keys():
-                        self.dict[word]["words"][words[i+1]] += 1.
-                    else:
-                        self.dict[word]["words"][words[i+1]] = 1.
-
-
-    def __normalize(self):
-        for key, value in zip(self.dict.keys(), self.dict.values()):
-            value["freq"] /= self.__count_of_word
-
-            count_of_uses = sum(value["words"].values())
-
-            for word, freq in zip(value["words"].keys(), value["words"].values()):
-                value["words"][word] /= count_of_uses
-
-
-    def __get_word_prob(self, w1, w2):
         try:
             w2_prob = 1e-8
-            if w2 in self.dict[w1]["words"].keys():
-                w2_prob = self.dict[w1]["words"][w2]
-            return self.dict[w1]["freq"] * w2_prob
+            if w2 in cond_prob[w1].keys():
+                w2_prob = cond_prob[w1][w2] / language_model[w1]
+            prob_a = language_model[w1] * w2_prob
 
         except Exception:
             return 1e-28
 
+        prob *= prob_a
 
-    def get_prob(self, query):
-        if len(query) == 0:
-            return 0.
-        if len(query) == 1 and query[-1] not in self.dict.keys():
-            return 0.
+    if query[-1] in language_model.keys():
+        prob *= language_model[query[-1]]
 
-        prob = 1.
-        for i in range(len(query)-1):
-            w1 = query[i]
-            w2 = query[i+1]
-            prob *= self.__get_word_prob(w1, w2)
-
-        if query[-1] in self.dict.keys():
-            prob *= self.dict[query[-1]]["freq"]
-
-        return prob*len(query)
-
-    def get_word_prob(self, word):
-        if word in self.dict.keys():
-            return self.dict[word]["freq"]
-        else:
-            return 0.
-
-def generate_features(language_model, query_inc, words_inc, query_corr, words_corr):
-    en_ = re.compile(r'[a-z]')
-    x = []
-    max_prob = -2
-    min_prob = 2
-    count_of_words_in_dict = 0
-
-    len_words_inc = len(words_inc)
-    len_query_inc= len(query_inc)
-    len_words_corr= len(words_corr)
-    len_query_corr= len(query_corr)
-
-    set_words_inc = set(words_inc)
-    set_words_corr = set(words_corr)
-
-    unique = set_words_inc.symmetric_difference(set_words_corr)
-    union = set_words_inc.union(set_words_corr)
-
-    x.append(len_words_inc)
-    x.append(len_query_inc)
-    x.append(len_words_corr)
-    x.append(len_query_corr)
-    x.append(lm.get_prob(list(union)))
-
-    for word in list(union):
-        prob = lm.get_word_prob(word)
-        if prob > max_prob:
-            max_prob = prob
-        if prob < min_prob:
-            min_prob = prob
-
-        if word in lm.dict.keys():
-            count_of_words_in_dict += 1
-
-    x.append(max_prob)
-    x.append(min_prob)
-    x.append(len(list(union))-count_of_words_in_dict)
-
-    if u"," in query_inc or u"." in query_inc or u"'" in query_inc or u";" in query_inc or u"]" in query_inc or u"[" in query_inc or \
-        u"~" in query_inc or u"," in query_corr or u"." in query_corr or u"'" in query_corr or u";" in query_corr or u"]" in query_corr or u"[" in query_corr or \
-        u"~" in query_corr:
-        x.append(1)
-    else:
-        x.append(0)
-
-    if en_.findall(query_corr) or en_.findall(query_inc):
-        lang = 1
-    else:
-        lang = 0
-    x.append(lang)
-
-    return x
+    return prob*len(query)
 
 def format_text(self, words):
     formatted_query = ""
@@ -182,6 +72,88 @@ def get_formated_text(text):
 
     return query, words
 
+def generate_features(language_model, cond_prob, query_inc, words_inc, query_corr, words_corr):
+    en_ = re.compile(r'[a-z]')
+    x = []
+    max_prob = -2
+    min_prob = 2
+    count_of_words_in_dict = 0
+
+    dl_ = dl_distance(query_inc, query_corr)
+
+    lev = dl_[1]
+    sub = 0
+    ins = 0
+    del_ = 0
+    tr = 0
+
+    for i in dl_[0]:
+        if i[0] =='ins':
+            ins = ins + 1
+        elif i[0] == 'sub':
+            sub = sub + 1
+        elif i[0] == 'del':
+            del_ = del_ + 1
+        elif i[0] == 'tr':
+            tr = tr + 1
+
+    x.append(lev)
+    x.append(ins)
+    x.append(sub)
+    x.append(del_)
+    x.append(tr)
+
+    len_words_inc = len(words_inc)
+    len_query_inc= len(query_inc)
+    len_words_corr= len(words_corr)
+    len_query_corr= len(query_corr)
+
+    set_words_inc = set(words_inc)
+    set_words_corr = set(words_corr)
+
+    unique = set_words_inc.symmetric_difference(set_words_corr)
+    union = set_words_inc.union(set_words_corr)
+
+    x.append(len_words_inc)
+    x.append(len_query_inc)
+    x.append(len_words_corr)
+    x.append(len_query_corr)
+    x.append(get_prob(language_model, cond_prob, list(union)))
+
+    for word in list(union):
+        # prob = lm.get_word_prob(word)
+        if word in language_model.keys():
+            prob = language_model[word]
+        else:
+            prob = 0.
+        # prob = language_model[word]
+        if prob > max_prob:
+            max_prob = prob
+        if prob < min_prob:
+            min_prob = prob
+
+        if word in language_model.keys():
+            count_of_words_in_dict += 1
+
+    x.append(max_prob)
+    x.append(min_prob)
+    x.append(len(list(union)) - count_of_words_in_dict)
+
+    if u"," in query_inc or u"." in query_inc or u"'" in query_inc or u";" in query_inc or u"]" in query_inc or u"[" in query_inc or \
+        u"~" in query_inc or u"," in query_corr or u"." in query_corr or u"'" in query_corr or u";" in query_corr or u"]" in query_corr or u"[" in query_corr or \
+        u"~" in query_corr:
+        x.append(1)
+    else:
+        x.append(0)
+
+    if en_.findall(query_corr) or en_.findall(query_inc):
+        lang = 1
+    else:
+        lang = 0
+    x.append(lang)
+
+    return np.array(x).reshape(1, -1)
+
 class SpellChecker:
     def __init__(self, alpha=1000., threshold=0.95, N=3):
         self.alpha = alpha
@@ -193,10 +165,9 @@ class SpellChecker:
             self.error_model = pickle.load(f)
         with open('./bigram_language_model.pkl', 'r') as f:
             self.cond_prob = pickle.load(f)
-        #self.lm = LanguageModel('queries_all.txt')
         self.trie = Trie()
-        #with open('./classificator', 'r') as f:
-        #    self.dicty_classifier = pickle.load(f)
+        with open('./classificator.pkl', 'rb') as f:
+            self.dicty_classifier = pickle.load(f)
         for w in self.language_model:
             self.trie.push(w)
         self.trie.set_search(self.language_model, self.error_model, self.alpha, self.threshold, self.N)
@@ -260,12 +231,12 @@ class SpellChecker:
             cdicty = []
             cdicty_scores = []
             for i, fix in enumerate(dicty):
-                #query_fix, words_fix = get_formated_text(fix)
-                #query_query, words_query = get_formated_text(q)
-                #features = generate_features(self.lm, query_query, words_query, query_fix, words_fix)
-                #if self.dicty_classifier.predict(features):
-                cdicty.append(fix[0])
-                cdicty_scores.append(fix[1])
+                query_fix, words_fix = get_formated_text(fix[0])
+                query_query, words_query = get_formated_text(q)
+                features = generate_features(self.language_model, self.cond_prob, query_query, words_query, query_fix, words_fix)
+                if self.dicty_classifier.predict(features):
+                    cdicty.append(fix[0])
+                    cdicty_scores.append(fix[1])
             fixes = csplits + cjoins + cdicty
             if fixes:
                 scores = csplits_scores + cjoins_scores + cdicty_scores
