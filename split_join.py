@@ -4,6 +4,12 @@ import sys
 
 
 def join(query, cond_prob, language_model):
+    if query.find(' ') == -1:
+        try: 
+            score = language_model[query]
+        except:
+            score = 0 
+        return query, score
     lst = query.split(' ')
     fix_join = []
     for i in range(len(query)):
