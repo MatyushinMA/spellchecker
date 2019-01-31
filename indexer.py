@@ -22,8 +22,6 @@ my_dict = Trie()
 punctuation = [unichr(i) for i in range(sys.maxunicode) if unicodedata.category(unichr(i)).startswith('P')]
 punctuation = u''.join(punctuation)
 for i, query in enumerate(queries_all):
-    if i % 5000 == 0 and i > 0:
-        break
     query = query.lower()
     lst = query.split(u'\t')
     orig = lst[0]
