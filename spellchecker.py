@@ -207,17 +207,18 @@ class SpellChecker:
             splits, split_scores = split_join.split(query, self.cond_prob, self.language_model) # splits
             csplits = []
             csplits_scores = []
-            for i, fix in enumerate(splits):
-                if split_join.classification(fix, query, self.cond_prob, self.language_model):
-                    csplits.append(fix)
-                    csplits_scores.append(split_scores[i])
+            fix, score = split_join.classification(fix, query, self.cond_prob, self.language_model):
+            csplits.append(fix)
+            csplits_scores.append(score)
+
             joins, join_scores = split_join.join(query, self.cond_prob, self.language_model) # join
             cjoins = []
             cjoins_scores = []
-            for i, fix in enumerate(joins):
-                if split_join.classification(fix, query, self.cond_prob, self.language_model):
-                    cjoins.append(fix)
-                    cjoins_scores.append(join_scores[i])
+
+            fix, score = split_join.classification(fix, query, self.cond_prob, self.language_model):
+            cjoins.append(fix)
+            cjoins_scores.append(join_scores[i])
+            
             dicty, dicty_scores = self.trie.search(query) # dicty
             cdicty = []
             cdicty_scores = []
