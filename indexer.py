@@ -43,9 +43,9 @@ for i, query in enumerate(queries_all):
     for w in nt_words:
         w = w.strip()
         w = w.strip(punctuation)
-        if len(w) <= 2:
-            skipped += 1
-            continue
+        #if len(w) <= 2:
+        #    skipped += 1
+        #    continue
         if w == '':
             continue
         if w in language_model:
