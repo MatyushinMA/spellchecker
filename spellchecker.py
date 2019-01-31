@@ -174,7 +174,7 @@ class SpellChecker:
 
     def __call__(self, q):
         punctuation = [unichr(i) for i in range(sys.maxunicode) if unicodedata.category(unichr(i)).startswith('P')]
-        punctuation = u''.join(punctuation)
+        punctuation = unicode('').join(punctuation)
         for _ in range(ITER_CAP):
             splits, split_scores = split_join.split(q, self.cond_prob, self.language_model) # splits
             csplits = []
@@ -192,7 +192,7 @@ class SpellChecker:
             cjoins.append(fix)
             cjoins_scores.append(score)
 
-            wds = q.split(' ')
+            wds = q.split(unicode(' '))
             query_graph = []
             for word in wds:
                 word.strip()
@@ -255,6 +255,7 @@ engine = SpellChecker()
 while True:
     query = sys.stdin.readline().strip()
     if query:
-        print(engine(query.decode('utf-8')))
+        query = query.decode('utf-8')
+        print(engine(query))
     else:
         break
