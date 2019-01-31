@@ -208,17 +208,19 @@ class SpellChecker:
             splits, split_scores = split_join.split(q, self.cond_prob, self.language_model) # splits
             csplits = []
             csplits_scores = []
-            for i, fix in enumerate(splits):
-                if split_join.classification(fix, q, self.cond_prob, self.language_model):
-                    csplits.append(fix)
-                    csplits_scores.append(split_scores[i])
-            joins, join_scores = split_join.join(q, self.cond_prob, self.language_model) # join
+
+            fix, score = split_join.classification(splits, split_scores, query, self.cond_prob, self.language_model)
+            csplits.append(fix)
+            csplits_scores.append(score)
+
+            joins, join_scores = split_join.join(query, self.cond_prob, self.language_model)  # join
             cjoins = []
             cjoins_scores = []
-            for i, fix in enumerate(joins):
-                if split_join.classification(fix, q, self.cond_prob, self.language_model):
-                    cjoins.append(fix)
-                    cjoins_scores.append(join_scores[i])
+
+            fix, score = split_join.classification(joins, score, query, self.cond_prob, self.language_model)
+            cjoins.append(fix)
+            cjoins_scores.append(score)
+
             wds = q.split(' ')
             query_graph = []
             for word in wds:

@@ -19,7 +19,7 @@ def join(query, cond_prob, language_model):
             except:
                 pass
 
-    return fix_join, score
+    return fix_join[np.argmax(score)], score.max()
 
 
 def split(query, cond_prob, language_model):
@@ -37,37 +37,20 @@ def split(query, cond_prob, language_model):
             except:
                 pass
 
-    return fix_split, score
+    return fix_split[np.argmax(score)], score.max()
 
 
-def classification(fix, orig, cond_prob, language_model):
-    fix_words = fix.split(' ')
+def classification(fix, score, orig, cond_prob, language_model):
     orig_words = orig.split(' ')
-    fix_score = 0
-    orig_score = 0
-    for j in range(len(fix_words)-1):
-        try:
-            fix_score += cond_prob[fix_words[j]][fix_words[j+1]]/language_model[fix_words[j]]
-            fix_score += language_model[fix_words[j]]
-        except:
-            pass
-    try:
-        fix_score += language_model[fix_words[j+1]]
-    except:
-        pass
+    orig_score = 0 
 
     for j in range(len(orig_words)-1):
         try:
             orig_score += cond_prob[orig_words[j]][orig_words[j+1]]/language_model[orig_words[j]]
-            orig_score += language_model[orig_words[j]]
         except:
             pass
-    try:
-        orig_score += language_model[orig_words[j+1]]
-    except:
-        pass
 
-    if orig_score >= fix_score:
-        return False
-
-    return True
+    if orig_score >= score:
+        return orig, orig_score
+    return fix, score
+   
