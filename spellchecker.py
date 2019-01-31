@@ -4,8 +4,7 @@ import split_join
 import pickle
 import re
 import numpy as np
-import random
-from sklearn.utils import shuffle
+import unicodedata
 
 ITER_CAP = 10
 
@@ -196,51 +195,86 @@ class SpellChecker:
             self.cond_prob = pickle.load(f)
         #self.lm = LanguageModel('queries_all.txt')
         self.trie = Trie()
-        with open('./classificator', 'r') as f:
-            self.dicty_classifier = pickle.load(f)
+        #with open('./classificator', 'r') as f:
+        #    self.dicty_classifier = pickle.load(f)
         for w in self.language_model:
             self.trie.push(w)
         self.trie.set_search(self.language_model, self.error_model, self.alpha, self.threshold, self.N)
 
-    def __call__(self, query):
+    def __call__(self, q):
+        punctuation = [unichr(i) for i in range(sys.maxunicode) if unicodedata.category(unichr(i)).startswith('P')]
+        punctuation = u''.join(punctuation)
         for _ in range(ITER_CAP):
-            splits, split_scores = split_join.split(query, self.cond_prob, self.language_model) # splits
+            splits, split_scores = split_join.split(q, self.cond_prob, self.language_model) # splits
             csplits = []
             csplits_scores = []
             for i, fix in enumerate(splits):
-                if split_join.classification(fix, query, self.cond_prob, self.language_model):
+                if split_join.classification(fix, q, self.cond_prob, self.language_model):
                     csplits.append(fix)
                     csplits_scores.append(split_scores[i])
-            joins, join_scores = split_join.join(query, self.cond_prob, self.language_model) # join
+            joins, join_scores = split_join.join(q, self.cond_prob, self.language_model) # join
             cjoins = []
             cjoins_scores = []
             for i, fix in enumerate(joins):
-                if split_join.classification(fix, query, self.cond_prob, self.language_model):
+                if split_join.classification(fix, q, self.cond_prob, self.language_model):
                     cjoins.append(fix)
                     cjoins_scores.append(join_scores[i])
-            dicty, dicty_scores = self.trie.search(query) # dicty
+            wds = q.split(' ')
+            query_graph = []
+            for word in wds:
+                word.strip()
+                word.strip(punctuation)
+                dicty, dicty_scores = self.trie.search(word)
+                query_graph.append(dicty)
+            def recursive_fixes_search(query_graph, now_query=[], now_score=0., step=0):
+                ret = []
+                if step < len(query_graph) - 1:
+                    for cand in query_graph[step]:
+                        if not step == 0:
+                            new_now_query = now_query[:] + [cand]
+                            try:
+                                new_now_score = now_score + self.cond_prob[now_query[-1]][cand]/self.language_model[now_query[-1]]
+                            except:
+                                new_now_score = now_score
+                            ret += recursive_fixes_search(query_graph, new_now_query, new_now_score, step + 1)
+                        else:
+                            ret += recursive_fixes_search(query_graph, [cand], self.language_model[cand], step + 1)
+                else:
+                    for cand in query_graph[step]:
+                        if now_query:
+                            new_now_query = now_query + [cand]
+                            try:
+                                score = now_score + self.cond_prob[now_query[-1]][cand]/self.language_model[now_query[-1]]
+                            except:
+                                score = now_score
+                            q = u' '.join(new_now_query)
+                            ret.append((q, score))
+                        else:
+                            score = self.language_model[cand]
+                            q = cand
+                            ret = [(cand, score)]
+                return ret
+            dicty = recursive_fixes_search(query_graph)
             cdicty = []
             cdicty_scores = []
             for i, fix in enumerate(dicty):
-                query_fix, words_fix = get_formated_text(fix)
-                query_query, words_query = get_formated_text(query)
-                features = generate_features(self.lm, query_query, words_query, query_fix, words_fix)
-                if self.dicty_classifier.predict(features):
-                    cdicty.append(fix)
-                    cdicty_scores.append(dicty_scores[i])
+                #query_fix, words_fix = get_formated_text(fix)
+                #query_query, words_query = get_formated_text(q)
+                #features = generate_features(self.lm, query_query, words_query, query_fix, words_fix)
+                #if self.dicty_classifier.predict(features):
+                cdicty.append(fix[0])
+                cdicty_scores.append(fix[1])
             fixes = csplits + cjoins + cdicty
             if fixes:
                 scores = csplits_scores + cjoins_scores + cdicty_scores
                 scores = np.array(scores)
                 sort_indices = np.argsort(scores)[::-1]
                 fix = fixes[sort_indices[0]]
-                print(fix)
-                print(query == fix)
-                if query == fix:
-                    return query
-                query = fix
+                if q == fix:
+                    return q
+                q = fix
             else:
-                return query
+                return q
 
 
 engine = SpellChecker()
