@@ -99,7 +99,7 @@ class Trie:
         candidates = []
         weights = []
         root_node = self.nodes[0]
-        nds = [(id, 1) for id in root_node.next]
+        nds = [(id, 0) for id in root_node.next]
         while nds:
             next_nds = []
             for nd in nds:
