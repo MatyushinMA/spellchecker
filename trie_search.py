@@ -1,5 +1,6 @@
 from fizzle import *
 import math
+import bisect
 
 class Node:
     def __init__(self, id=0, value='', walk = '', final=False, prev=None, next=[]):
@@ -96,6 +97,7 @@ class Trie:
 
     def search(self, word):
         candidates = []
+        weights = []
         root_node = self.nodes[0]
         nds = [(id, 1) for id in root_node.next]
         while nds:
@@ -109,7 +111,12 @@ class Trie:
                     error_coef = math.log(pow(self.alpha, -self.lev_distance(prefix, word)[1]), 2.)
                     lang_coef = self.alpha*math.log(self.language_model[prefix], 2.)
                     weight = lang_coef + error_coef
-                    candidates.append((prefix, weight))
+                    index = bisect.bisect_left(weights, weight)
+                    candidates.insert(i, prefix)
+                    weights.append(i, weight)
+                    if len(weights) > self.N:
+                        weights = weight[1:]
+                        candidates = candidates[1:]
                 if nd[1] < len(word):
                     next_nds.append((nd[0], nd[1] + 1))
                 for next_nd in self.nodes[nd[0]].next:
@@ -117,10 +124,7 @@ class Trie:
                     if nd[1] < len(word):
                         next_nds.append((next_nd, nd[1] + 1))
             nds = next_nds
-            candidates = sorted(candidates, key=lambda cand: -cand[1])[:self.N]
-        cnds = [cnd[0] for cnd in candidates]
-        scores = [cnd[1] for cnd in candidates]
-        return cnds, scores
+        return candidates[::-1], weights[::-1]
 
     def print_nodes(self):
         for node in self.nodes:
