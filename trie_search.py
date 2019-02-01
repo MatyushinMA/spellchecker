@@ -113,7 +113,7 @@ class Trie:
                     weight = lang_coef + error_coef
                     index = bisect.bisect_left(weights, weight)
                     candidates.insert(i, prefix)
-                    weights.append(i, weight)
+                    weights.insert(i, weight)
                     if len(weights) > self.N:
                         weights = weight[1:]
                         candidates = candidates[1:]
