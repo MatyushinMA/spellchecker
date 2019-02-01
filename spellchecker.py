@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import sys
 from trie_search import Trie
 import split_join
@@ -7,6 +9,8 @@ import numpy as np
 import unicodedata
 import sklearn
 from fizzle import dl_distance
+from string import maketrans   # Required to call maketrans function.
+import string
 
 ITER_CAP = 10
 
@@ -171,11 +175,40 @@ class SpellChecker:
         for w in self.language_model:
             self.trie.push(w)
         self.trie.set_search(self.language_model, self.error_model, self.alpha, self.threshold, self.N)
+        intab = "qwertyuiop[]asdfghjkl;'\\`zxcvbnm,./йцукенгшщзхъфывапролджэ\\]ячсмитьбю.".decode('utf-8')
+        outtab = "йцукенгшщзхъфывапролджэ\\]ячсмитьбю.qwertyuiop[]asdfghjkl;'\\`zxcvbnm,./".decode('utf-8')
+        self.transtab = dict((ord(intab[i]), ord(outtab[i])) for i in range(len(intab)))
 
     def __call__(self, q):
         punctuation = [unichr(i) for i in range(sys.maxunicode) if unicodedata.category(unichr(i)).startswith('P')]
         punctuation = unicode('').join(punctuation)
         for _ in range(ITER_CAP):
+
+            wds = q.split(unicode(' '))
+
+            for word in wds: # layout
+                layout_suggest = []
+                translited_word = word.translate(self.transtab)
+                try:
+                    score = self.trie.search(word)[1][0]
+                except:
+                    score = -float('inf')
+                try:
+                    translited_score = self.trie.search(translited_word)[1][0]
+                except:
+                    translited_score = -float('inf')
+                if translited_score > score:
+                    layout_suggest.append(translited_word)
+                else:
+                    layout_suggest.append(word)
+            layout_score = self.language_model.get(layout_suggest[0], 0.)
+            for i, w in enumerate(layout_suggest[:-1]):
+                try:
+                    layout_score += self.cond_prob[w][layout_suggest[i + 1]]/self.language_model[w]
+                except:
+                    pass
+            q = unicode(' ').join(layout_suggest)
+
             splits, split_scores = split_join.split(q, self.cond_prob, self.language_model) # splits
             csplits = []
             csplits_scores = []
@@ -193,7 +226,8 @@ class SpellChecker:
             cjoins_scores.append(score)
 
             wds = q.split(unicode(' '))
-            query_graph = []
+
+            query_graph = [] # dicty
             for word in wds:
                 word.strip()
                 word.strip(punctuation)

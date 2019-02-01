@@ -5,10 +5,10 @@ import sys
 
 def join(query, cond_prob, language_model):
     if query.find(' ') == -1:
-        try: 
+        try:
             score = language_model[query]
         except:
-            score = 0 
+            score = 0
         return query, score
     lst = query.split(' ')
     fix_join = []
@@ -30,6 +30,9 @@ def join(query, cond_prob, language_model):
 
 def split(query, cond_prob, language_model):
     fix_split = []
+    if len(query) == 1:
+        score = language_model.get(query, 0.)
+        return query, score
     for i in range(1, len(query)):
         if query[i] != ' ':
             fix_split.append(query[:i] + ' ' + query[i:])
@@ -48,7 +51,7 @@ def split(query, cond_prob, language_model):
 
 def classification(fix, score, orig, cond_prob, language_model):
     orig_words = orig.split(' ')
-    orig_score = 0 
+    orig_score = 0
 
     for j in range(len(orig_words)-1):
         try:
@@ -59,4 +62,3 @@ def classification(fix, score, orig, cond_prob, language_model):
     if orig_score >= score:
         return orig, orig_score
     return fix, score
-   
